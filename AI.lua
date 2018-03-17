@@ -1,4 +1,5 @@
 change = 0
+couldSimulate = 0
 viruses = 0
 pills = 0
 
@@ -93,47 +94,88 @@ end
 local function getFitnessScore ()
 	return pills + (viruses * 8)
 end
+function bestPillPlacement( pill,board)
+	local maxscore = 0
+	maxscoreI = -1
+	maxscoreJ = -1
+	local i,j
+	for i=1,8 do
+		for j=0,3 do
+			simulatePill(i,pill,j,board)
+			if (couldSimulate == 1) then
+				if (maxscore < getFitnessScore()) then
+					maxscoreI = i
+					maxscoreJ = j
+					maxscore = getFitnessScore()
+				end
+			end
+		end
+	end
+	--board = simulatePill(maxscoreI,pill,maxscoreJ,board)
+	--emu.print(maxscore ..",".. maxscoreI ..",".. maxscoreJ)
+	return board
+end
 
-local function simulatePill(col,pill,rotation,board)
+
+function simulatePill(col,pill,rotation,board)
 	--rotation :0 and 2 are horizontile, 1 and 3 are vertical
 	local count = 0
-
+	--LOOP until highest object in column is found
 	for i=1,16 do
 		local temp = ""..board[tonumber(i)][tonumber(col)]
-		emu.print( temp .. "<<<<<")
 		if (temp ~= "FF") then break end
 		count = count + 1
 	end
-	if ( rotation == "0") then
+	--emu.print(col .. " " .. pill .." "..rotation )
+	--emu.print("-----")
+	--printBoard(board)
+	--emu.print("-----")
 
-		if (count > 1) then
-			if(board[col][count-1] ~= "FF" ) then
-				board[col][count] =  pill:sub(1,2)
-				board[col][count-1] =  pill:sub(3,4)
+	if ( rotation == 0) then
+		if (count  < 16) then
+			if(board[count][tonumber(col) + 1] ~= "FF" ) then
+				board[count][tonumber(col)] =  "6".. pill:sub(1,1) 
+				board[count][tonumber(col) + 1] =  "7"..pill:sub(2,2)
+				couldSimulate = 1
+			else
+				couldSimulate = 0
+				return board
 			end
 		end
-	elseif (rotation == "2") then
+	elseif (rotation == 2) then
 		if (count < 16) then
 			if(board[col][count+1] ~= "FF") then
-				board[col][count] =  pill:sub(3,4)
-				board[col][count+1] =  pill:sub(1,2)
+				board[col][count] =  "6"..pill:sub(2,2)
+				board[col][count+1] =  "7"..pill:sub(1,1)
+				couldSimulate = 1
+			else
+				couldSimulate = 0
+				return board
 			end
 		end
-	elseif  (rotation == "1") then
-		--printBoard(board)
-		--emu.print("before " ..board[tonumber(count)][tonumber(col)] )
-		board[tonumber(count)][tonumber(col)] = pill:sub(1,2)
-		--emu.print("after " ..board[tonumber(count)][tonumber(col)] )
-		board[tonumber(count)-1][tonumber(col)] = pill:sub(3,4)
-		printBoard(board)
-	elseif (rotation == "3") then
-		board[count][col] = pill:sub(3,4)
-		board[count][col+1] = pill:sub(1,2)
+	elseif  (rotation == 1) then
+		if (count > 1) then
+			board[tonumber(count)][tonumber(col)] = "4"..pill:sub(1,1)
+			board[tonumber(count)-1][tonumber(col)] = "5"..pill:sub(2,2)
+			couldSimulate = 1
+		else
+			change = 0
+			return board
+		end
+	elseif (rotation == 3) then
+		if (count > 1) then
+			board[count][tonumber(col)] = "4"..pill:sub(2,2)
+			board[count][tonumber(col)-1] = "5"..pill:sub(1,1)
+			couldSimulate = 1
+		else
+			couldSimulate = 0
+			return board
+		end
 	end
 	return matchboard(board)
 end
 
-local function deleteNeighbor( x, y, board )
+local function deleteNeighbor(y, x, board )
 	local i,endX1,endX2,endY1,endY2,countX,countY,typePill
 	i = 0
 	endX1 = x
@@ -142,39 +184,18 @@ local function deleteNeighbor( x, y, board )
 	endY2 = y
 	countX = 1
 	countY = 1
-	typePill = board[x][y]:sub(2,2)
+	
+	typePill = board[tonumber(y)][tonumber(x)]:sub(2,2)
 	viruses = 0
 	pills = 0
 	--empty cells cannot delete nearby empty neighbors
-	if (board[x][y] == "FF") then return board end
+	if (board[y][x] == "FF") then return board end
 
 	--find if deletion patern exists vertically or horizontally or both
 	--columns
 	for i=1,6 do
-		if ( x-i > 0 )  then
-			if ( board[x-i][y]:sub(2,2) == typePill) then
-				countX = countX + 1
-				endX1 = x-i
-			else
-				break
-			end
-		end
-	end
-	for i=1,6 do
-		if ( x+i < 17 )  then
-			if ( board[x+i][y]:sub(2,2) == typePill) then
-				countX = countX + 1
-				endX2 = x+i
-			else
-				break
-			end
-		end
-	end
-	--rows
-	for i=1,8 do
 		if ( y-i > 0 )  then
-
-			if ( board[x][y-i]:sub(2,2) == typePill) then
+			if ( board[y-i][x]:sub(2,2) == typePill) then
 				countY = countY + 1
 				endY1 = y-i
 			else
@@ -182,11 +203,33 @@ local function deleteNeighbor( x, y, board )
 			end
 		end
 	end
-	for i=1,8 do
-		if ( y+i < 9 )  then
-			if ( board[x][y+i]:sub(2,2) == typePill) then
+	for i=1,6 do
+		if ( y+i < 17 )  then
+			if ( board[y+i][x]:sub(2,2) == typePill) then
 				countY = countY + 1
 				endY2 = y+i
+			else
+				break
+			end
+		end
+	end
+	--rows
+	for i=1,8 do
+		if ( x-i > 0 ) then
+
+			if ( board[y][x-i]:sub(2,2) == typePill) then
+				countX = countX + 1
+				endX1 = x-i
+			else
+				break
+			end
+		end
+	end
+	for i=1,8 do
+		if ( x+i < 9 ) then
+			if ( board[y][x+i]:sub(2,2) == typePill) then
+				countX = countX + 1
+				endX2 = x+i
 			else
 				break
 			end
@@ -196,28 +239,31 @@ local function deleteNeighbor( x, y, board )
 	--delete neighbors if there is 4 in a row or column
 	if (countX > 3) then
 		for i=endX1,endX2 do
-			--clean up board by fixing adjacent pill connections
-			if (board[i][y]:sub(1,1) == "4") then board[i+1][y] = "8"..board[i][i]:sub(2,2) end
-			if (board[i][y]:sub(1,1) == "5") then board[i-1][y] = "8"..board[i][i]:sub(2,2) end
-			if (board[i][y]:sub(1,1) == "6") then board[i][y+1] = "8"..board[i][y]:sub(2,2) end
-			if (board[i][y]:sub(1,1) == "7") then board[i][y-1] = "8"..board[i][y]:sub(2,2) end
+			--clean up board by fixing adjacent pill connections. ignore connections within deletion
+			if (board[y][i]:sub(1,1) == "4" ) then board[y+1][i] = "8"..typePill end
+			if (board[y][i]:sub(1,1) == "5" ) then board[y-1][i] = "8"..typePill end
+			if (board[y][i]:sub(1,1) == "6" and board[y][i+1]:sub(1,1) ~= "F") then board[y][i+1] = "8"..typePill end
+			if (board[y][i]:sub(1,1) == "7" and board[y][i-1]:sub(1,1) ~= "F") then board[y][i-1] = "8"..typePill end
 			
-			if (board[i][y]:sub(1,1) == "D") then viruses = viruses + 1 
+			if (board[y][i]:sub(1,1) == "D") then viruses = viruses + 1 
 			else pills = pills + 1
 			end
-			board[i][y] = "F"..typePill
+			board[y][i] = "F"..typePill
 
 		end
 		change = 1;
 	end
 	if (countY > 3)  then
 		for i=endY1,endY2 do
-			--clean up board by fixing adjacent pill connections
-			if (board[x][i]:sub(1,1) == "4") then board[x+1][i] = "8"..board[x+1][i]:sub(2,2) end
-			if (board[x][i]:sub(1,1) == "5") then board[x-1][i] = "8"..board[x-1][i]:sub(2,2) end
-			if (board[x][i]:sub(1,1) == "6") then board[x][i+1] = "8"..board[x][i+1]:sub(2,2) end
-			if (board[x][i]:sub(1,1) == "7") then board[x][i-1] = "8"..board[x][i-1]:sub(2,2) end
-			if (board[i][y]:sub(1,1) == "D") then viruses = viruses + 1 end
+			--clean up board by fixing adjacent pill connections. ignore connections within deletion
+			if (board[i][x]:sub(1,1) == "4" and board[i+1][x]:sub(1,1) ~= "F") then board[i][x] = "8"..typePill end
+			if (board[i][x]:sub(1,1) == "5" and board[i-1][x]:sub(1,1) ~= "F") then board[i][x] = "8"..typePill end
+			if (board[i][x]:sub(1,1) == "6") then board[i][x+1] = "8"..typePill end
+			if (board[i][x]:sub(1,1) == "7") then board[i][x-1] = "8"..typePill end
+			
+			if (board[i][x]:sub(1,1) == "D") then viruses = viruses + 1
+			else pills = pills + 1
+			end
 			board[x][i] = "F"..typePill
 		end
 		change = 1;
@@ -452,7 +498,9 @@ function matchboard( board )
 					if change == 1 then bool = 1 end
 				end
 			end
+			emu.print(bool.."H")
 		end
+		
 		--let everything fall and delete the matched pills and viruses from
 		for i=16,1,-1 do
 			for j=1,8 do			
@@ -460,6 +508,7 @@ function matchboard( board )
 				if change == 1 then bool = 1 end
 			end
 		end
+		
 	end 
 	viruses = virusesDetroyed
 	pills = pillsDetroyed
@@ -470,16 +519,17 @@ end
 
 --local test = {fall(7,3,board)}
 --board =  matchboard(board)
---board = deleteNeighbor(16,2,board)
 board = getFileBoard()
-board = getGameBoard(board)
+board = simulatePill(2,"11",1,board)
+--board = getGameBoard(board)
 --local str = getCurrentPill()
 --emu.print(str)
 --str = getNextPill()
 --emu.print(str)
 --board = simulatePill("1","5242","1",board)
+--emu.print(couldSimulate .. " couldSimulate")
 --emu.print(viruses .. " viruses")
-
+--board = bestPillPlacement("11",board)
 
 local file = io.open("board.txt" , "w")
 for i=1,16 do
